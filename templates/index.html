@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Günlük Ürünler — Fonksiyonel Fiyat Takip{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+  <div>
+    <h2 class="mb-0 fw-bold">Günlük Ürün Listesi</h2>
+    <p class="text-muted mb-0">
+      <i class="bi bi-calendar-event me-1"></i>{{ snap_date }}
+      &nbsp;·&nbsp;
+      <i class="bi bi-box-seam me-1"></i>{{ products|length }} ürün
+    </p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <!-- Tarih seçici -->
+    {% if dates|length > 1 %}
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-clock-history me-1"></i>Tarih Seç
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% for d in dates %}
+        <li><a class="dropdown-item {% if d == snap_date %}active{% endif %}" href="/?date={{ d }}">{{ d }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Filtre -->
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-funnel me-1"></i>Filtrele
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="?date={{ snap_date }}">Tümü</a></li>
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&filter=available">Stokta Olanlar</a></li>
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&filter=discount">İndirimli Ürünler</a></li>
+        <li><hr class="dropdown-divider"></li>
+        {% for cat in categories %}
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&type={{ cat|urlencode }}">{{ cat }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Sıralama -->
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-sort-down me-1"></i>Sırala
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&sort=name">Ada Göre</a></li>
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&sort=price_asc">Fiyat (Artan)</a></li>
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&sort=price_desc">Fiyat (Azalan)</a></li>
+        <li><a class="dropdown-item" href="?date={{ snap_date }}&sort=discount">İndirim Oranı</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Arama -->
+<div class="mb-4">
+  <input type="text" id="searchInput" class="form-control" placeholder="Ürün ara…">
+</div>
+
+{% if products %}
+<div class="row g-4" id="productGrid">
+  {% for p in products %}
+  <div class="col-sm-6 col-md-4 col-lg-3 product-card-wrap">
+    <div class="card h-100 shadow-sm product-card {% if not p.available %}out-of-stock{% endif %}">
+      {% if p.image_url %}
+      <a href="{{ p.url }}" target="_blank">
+        <img src="{{ p.image_url }}" class="card-img-top product-img" alt="{{ p.title }}"
+             loading="lazy" onerror="this.src='/static/css/no-image.svg'">
+      </a>
+      {% endif %}
+
+      <div class="card-body d-flex flex-column">
+        {% if p.vendor %}
+        <span class="badge bg-secondary mb-1 align-self-start">{{ p.vendor }}</span>
+        {% endif %}
+        {% if p.product_type %}
+        <span class="badge bg-info text-dark mb-2 align-self-start">{{ p.product_type }}</span>
+        {% endif %}
+
+        <h6 class="card-title fw-semibold">
+          <a href="{{ p.url }}" target="_blank" class="text-decoration-none text-dark">{{ p.title }}</a>
+        </h6>
+
+        {% if p.description %}
+        <div class="position-relative">
+          <p class="card-text text-muted small desc-clamp copy-desc" data-text="{{ p.description }}">{{ p.description }}</p>
+          <button class="btn-copy-desc btn btn-outline-secondary btn-sm py-0 px-1 position-absolute top-0 end-0" title="Açıklamayı kopyala" onclick="copyText(this, 'desc')">
+            <i class="bi bi-clipboard fs-6"></i>
+          </button>
+        </div>
+        {% endif %}
+
+        <div class="mt-auto pt-2">
+          {% if p.price %}
+            {% if p.compare_price and p.compare_price > p.price %}
+            {% set discount = ((p.compare_price - p.price) / p.compare_price * 100)|int %}
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fs-5 fw-bold text-danger copy-price" data-text="{{ '%.2f'|format(p.price) }} TL (İndirimli, -%{{ discount }})">{{ "%.2f"|format(p.price) }} TL</span>
+              <del class="text-muted small">{{ "%.2f"|format(p.compare_price) }} TL</del>
+              <span class="badge bg-danger">-%{{ discount }}</span>
+              <button class="btn-copy btn btn-outline-danger btn-sm py-0 px-1" title="Fiyatı kopyala" onclick="copyText(this, 'price')">
+                <i class="bi bi-clipboard fs-6"></i>
+              </button>
+            </div>
+            {% else %}
+            <div class="d-flex align-items-center gap-2">
+              <span class="fs-5 fw-bold text-success copy-price" data-text="{{ '%.2f'|format(p.price) }} TL">{{ "%.2f"|format(p.price) }} TL</span>
+              <button class="btn-copy btn btn-outline-success btn-sm py-0 px-1" title="Fiyatı kopyala" onclick="copyText(this, 'price')">
+                <i class="bi bi-clipboard fs-6"></i>
+              </button>
+            </div>
+            {% endif %}
+          {% else %}
+          <span class="text-muted">Fiyat bilgisi yok</span>
+          {% endif %}
+
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            {% if p.available %}
+            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Stokta</span>
+            {% else %}
+            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Tükendi</span>
+            {% endif %}
+
+            <a href="/urun/{{ p.handle }}" class="badge bg-primary text-decoration-none">
+              <i class="bi bi-graph-up me-1"></i>Fiyat Geçmişi
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-warning text-center py-5">
+  <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
+  <strong>Bu tarih için veri bulunamadı.</strong><br>
+  <small class="text-muted">Scraper henüz çalışmamış olabilir.</small><br>
+  <a href="/scrape" class="btn btn-primary mt-3">
+    <i class="bi bi-arrow-clockwise me-1"></i>Şimdi Çek
+  </a>
+</div>
+{% endif %}
+
+{% if not products %}{% else %}
+<div class="text-center mt-4">
+  <a href="/scrape" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-arrow-clockwise me-1"></i>Verileri Yenile
+  </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("searchInput").addEventListener("input", function () {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll(".product-card-wrap").forEach(function (card) {
+    const text = card.querySelector(".card-title").textContent.toLowerCase();
+    card.style.display = text.includes(q) ? "" : "none";
+  });
+});
+
+function copyText(btn, type) {
+  const card = btn.closest(".card-body");
+  let text = "";
+  if (type === "price") {
+    const el = card.querySelector(".copy-price");
+    text = el ? el.dataset.text : "";
+  } else {
+    const el = card.querySelector(".copy-desc");
+    text = el ? el.dataset.text : "";
+  }
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(function () {
+    const icon = btn.querySelector("i");
+    icon.className = "bi bi-clipboard-check fs-6";
+    btn.classList.add("btn-success");
+    btn.classList.remove("btn-outline-secondary", "btn-outline-danger", "btn-outline-success");
+    setTimeout(function () {
+      icon.className = "bi bi-clipboard fs-6";
+      btn.classList.remove("btn-success");
+      if (type === "price") {
+        btn.classList.add("btn-outline-danger");
+      } else {
+        btn.classList.add("btn-outline-secondary");
+      }
+    }, 1500);
+  });
+}
+</script>
+{% endblock %}

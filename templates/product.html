@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.title }} — Fiyat Geçmişi{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/">Ana Sayfa</a></li>
+    <li class="breadcrumb-item active">{{ product.title }}</li>
+  </ol>
+</nav>
+
+<div class="row g-4">
+  <div class="col-md-4">
+    {% if product.image_url %}
+    <img src="{{ product.image_url }}" class="img-fluid rounded shadow-sm" alt="{{ product.title }}">
+    {% endif %}
+  </div>
+  <div class="col-md-8">
+    {% if product.vendor %}
+    <span class="badge bg-secondary mb-2">{{ product.vendor }}</span>
+    {% endif %}
+    {% if product.product_type %}
+    <span class="badge bg-info text-dark mb-2">{{ product.product_type }}</span>
+    {% endif %}
+
+    <h2 class="fw-bold">{{ product.title }}</h2>
+
+    {% if history %}
+    {% set last = history[-1] %}
+    <div class="d-flex align-items-center gap-3 my-3 flex-wrap">
+      {% if last.compare_price and last.compare_price > last.price %}
+      <span class="fs-3 fw-bold text-danger">{{ "%.2f"|format(last.price) }} TL</span>
+      <del class="text-muted">{{ "%.2f"|format(last.compare_price) }} TL</del>
+      {% set discount = ((last.compare_price - last.price) / last.compare_price * 100)|int %}
+      <span class="badge bg-danger fs-6">-%{{ discount }}</span>
+      {% else %}
+      <span class="fs-3 fw-bold text-success">{{ "%.2f"|format(last.price) }} TL</span>
+      {% endif %}
+    </div>
+
+    {% if last.available %}
+    <span class="badge bg-success mb-3"><i class="bi bi-check-circle me-1"></i>Stokta</span>
+    {% else %}
+    <span class="badge bg-danger mb-3"><i class="bi bi-x-circle me-1"></i>Tükendi</span>
+    {% endif %}
+    {% endif %}
+
+    <p class="text-muted">{{ product.description }}</p>
+
+    <a href="{{ product.url }}" target="_blank" class="btn btn-primary">
+      <i class="bi bi-bag me-1"></i>Siteye Git
+    </a>
+  </div>
+</div>
+
+<!-- Fiyat Geçmişi Grafiği -->
+{% if history|length > 1 %}
+<div class="card mt-5 shadow-sm">
+  <div class="card-header fw-semibold">
+    <i class="bi bi-graph-up me-2"></i>Fiyat Geçmişi
+  </div>
+  <div class="card-body">
+    <canvas id="priceChart" style="max-height:300px"></canvas>
+  </div>
+</div>
+{% endif %}
+
+<!-- Fiyat Geçmişi Tablosu -->
+<div class="card mt-4 shadow-sm">
+  <div class="card-header fw-semibold">
+    <i class="bi bi-table me-2"></i>Geçmiş Veriler
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Tarih</th>
+          <th>Fiyat</th>
+          <th>İndirimli Fiyat</th>
+          <th>İndirim</th>
+          <th>Durum</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history|reverse %}
+        <tr>
+          <td>{{ h.snap_date }}</td>
+          <td class="fw-semibold">
+            {% if h.price %}{{ "%.2f"|format(h.price) }} TL{% else %}—{% endif %}
+          </td>
+          <td class="text-muted">
+            {% if h.compare_price %}
+              <del>{{ "%.2f"|format(h.compare_price) }} TL</del>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if h.compare_price and h.compare_price > h.price %}
+              {% set d = ((h.compare_price - h.price) / h.compare_price * 100)|int %}
+              <span class="badge bg-danger">-%{{ d }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if h.available %}
+            <span class="badge bg-success">Stokta</span>
+            {% else %}
+            <span class="badge bg-secondary">Tükendi</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if history|length > 1 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const labels = {{ history | map(attribute='snap_date') | list | tojson }};
+const prices = {{ history | map(attribute='price') | list | tojson }};
+const compares = {{ history | map(attribute='compare_price') | list | tojson }};
+
+new Chart(document.getElementById('priceChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Satış Fiyatı (TL)',
+        data: prices,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13,110,253,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+      },
+      {
+        label: 'Normal Fiyat (TL)',
+        data: compares,
+        borderColor: '#dc3545',
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0.3,
+        pointRadius: 3,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { ticks: { callback: v => v + ' TL' } }
+    }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}
