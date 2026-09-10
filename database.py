@@ -2,8 +2,7 @@ import os
 import sqlite3
 from datetime import date
 
-# Vercel Postgres: POSTGRES_URL_NON_POOLING (schema oluştururken daha kararlı)
-# Standart: DATABASE_URL
+# Öncelik sırası: Vercel Postgres → Supabase/genel DATABASE_URL
 _DATABASE_URL = (
     os.environ.get("POSTGRES_URL_NON_POOLING")
     or os.environ.get("POSTGRES_URL")
@@ -11,6 +10,10 @@ _DATABASE_URL = (
 )
 if _DATABASE_URL.startswith("postgres://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Supabase bağlantı stringine sslmode yoksa ekle
+if _DATABASE_URL and "sslmode" not in _DATABASE_URL:
+    sep = "&" if "?" in _DATABASE_URL else "?"
+    _DATABASE_URL += f"{sep}sslmode=require"
 
 USE_PG = bool(_DATABASE_URL)
 PH = "%s" if USE_PG else "?"
