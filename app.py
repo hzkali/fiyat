@@ -1,3 +1,4 @@
+import os
 import threading
 import logging
 from datetime import date
@@ -9,10 +10,9 @@ import scheduler as sched
 log = logging.getLogger(__name__)
 app = Flask(__name__)
 
-# Arka planda günlük scheduler'ı başlat (sadece main process'te)
-import os
-if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-    # production veya non-reloader ortamda doğrudan başlat
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+
+if not IS_VERCEL and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
     _sched_thread = threading.Thread(target=sched.schedule_loop, daemon=True, name="DailyScheduler")
     _sched_thread.start()
 
@@ -75,28 +75,15 @@ def product_detail(handle):
     if not history:
         return redirect(url_for("index"))
 
-    # grab latest snapshot's metadata
-    conn = database.get_conn()
-    row = conn.execute("""
-        SELECT p.title, p.vendor, p.product_type, p.image_url, p.url,
-               s.description
-        FROM products p
-        JOIN snapshots s ON s.product_id = p.id
-        WHERE p.handle = ?
-        ORDER BY s.snap_date DESC LIMIT 1
-    """, (handle,)).fetchone()
-    conn.close()
-
-    if not row:
+    product = database.get_product_meta(handle)
+    if not product:
         return redirect(url_for("index"))
 
-    product = dict(row)
     return render_template("product.html", product=product, history=history)
 
 
 @app.route("/scrape")
 def trigger_scrape():
-    """Manually trigger a scrape in a background thread."""
     def _run():
         try:
             scraper.run_scrape()
@@ -110,7 +97,6 @@ def trigger_scrape():
 
 @app.route("/api/products")
 def api_products():
-    """JSON API — today's products."""
     snap_date = request.args.get("date") or str(date.today())
     return jsonify(database.get_daily_products(snap_date))
 
