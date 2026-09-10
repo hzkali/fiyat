@@ -2,7 +2,13 @@ import os
 import sqlite3
 from datetime import date
 
-_DATABASE_URL = os.environ.get("DATABASE_URL", "")
+# Vercel Postgres: POSTGRES_URL_NON_POOLING (schema oluştururken daha kararlı)
+# Standart: DATABASE_URL
+_DATABASE_URL = (
+    os.environ.get("POSTGRES_URL_NON_POOLING")
+    or os.environ.get("POSTGRES_URL")
+    or os.environ.get("DATABASE_URL", "")
+)
 if _DATABASE_URL.startswith("postgres://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
