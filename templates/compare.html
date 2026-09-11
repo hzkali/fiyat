@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Fiyat Karşılaştırma — Fonksiyonel Fiyat Takip{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+  <div>
+    <h2 class="mb-0 fw-bold">fonksiyonel.tr &harr; vitanica.tr Fiyat Karşılaştırma</h2>
+    <p class="text-muted mb-0">
+      <i class="bi bi-box-seam me-1"></i>{{ total_matched }} eşleşen ürün
+      &nbsp;·&nbsp;
+      <i class="bi bi-exclamation-triangle me-1"></i>{{ diff_count }} fiyat farkı
+    </p>
+  </div>
+
+  <div>
+    {% if only_diff %}
+    <a href="/karsilastir" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list me-1"></i>Tümünü Göster
+    </a>
+    {% else %}
+    <a href="/karsilastir?fark=1" class="btn btn-outline-warning btn-sm">
+      <i class="bi bi-funnel me-1"></i>Sadece Farklı Olanlar
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if rows %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>Ürün</th>
+        <th>fonksiyonel.tr</th>
+        <th>vitanica.tr</th>
+        <th>Fark</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.differs %}table-warning{% endif %}">
+        <td style="min-width:220px">
+          <div class="d-flex align-items-center gap-2">
+            {% if r.image_url %}
+            <img src="{{ r.image_url }}" alt="" style="width:40px;height:40px;object-fit:cover"
+                 class="rounded" onerror="this.style.display='none'">
+            {% endif %}
+            <span class="fw-semibold">{{ r.title }}</span>
+          </div>
+        </td>
+        <td>
+          <a href="{{ r.f_url }}" target="_blank" class="text-decoration-none">
+            <span class="fw-bold">{{ "%.2f"|format(r.f_price) }} TL</span>
+          </a>
+          {% if not r.f_available %}<br><span class="badge bg-danger">Tükendi</span>{% endif %}
+        </td>
+        <td>
+          <a href="{{ r.v_url }}" target="_blank" class="text-decoration-none">
+            <span class="fw-bold">{{ "%.2f"|format(r.v_price) }} TL</span>
+          </a>
+          {% if not r.v_available %}<br><span class="badge bg-danger">Tükendi</span>{% endif %}
+        </td>
+        <td>
+          {% if r.differs %}
+            {% if r.diff > 0 %}
+            <span class="text-danger fw-bold">+{{ "%.2f"|format(r.diff) }} TL</span>
+            <br><small class="text-muted">vitanica.tr daha ucuz</small>
+            {% else %}
+            <span class="text-danger fw-bold">{{ "%.2f"|format(r.diff) }} TL</span>
+            <br><small class="text-muted">fonksiyonel.tr daha ucuz</small>
+            {% endif %}
+          {% else %}
+          <span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Aynı</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warning text-center py-5">
+  <i class="bi bi-exclamation-triangle fs-1 d-block mb-3"></i>
+  <strong>Karşılaştırılacak eşleşen ürün bulunamadı.</strong><br>
+  <small class="text-muted">Her iki site için de veri toplanmış olmalı. Verileri yenilemeyi deneyin.</small><br>
+  <a href="/scrape" class="btn btn-primary mt-3">
+    <i class="bi bi-arrow-clockwise me-1"></i>Şimdi Çek
+  </a>
+</div>
+{% endif %}
+{% endblock %}

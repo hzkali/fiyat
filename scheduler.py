@@ -29,7 +29,7 @@ SCHEDULE_MINUTE = 0
 def run_job():
     log.info("=== Günlük scraping başladı ===")
     try:
-        count = scraper.run_scrape()
+        count = scraper.run_scrape_all()
         log.info("=== Scraping bitti: %d ürün ===", count)
     except Exception as exc:
         log.error("Scraping başarısız: %s", exc)

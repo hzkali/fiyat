@@ -86,13 +86,30 @@ def product_detail(handle):
 def trigger_scrape():
     def _run():
         try:
-            scraper.run_scrape()
+            scraper.run_scrape_all()
         except Exception as exc:
             log.error("Scrape hatası: %s", exc)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     return redirect(url_for("index"))
+
+
+@app.route("/karsilastir")
+def compare():
+    database.init_db()
+    all_rows = database.get_comparison()
+    only_diff = request.args.get("fark") == "1"
+    rows = [r for r in all_rows if r["differs"]] if only_diff else all_rows
+    diff_count = sum(1 for r in all_rows if r["differs"])
+
+    return render_template(
+        "compare.html",
+        rows=rows,
+        total_matched=len(all_rows),
+        diff_count=diff_count,
+        only_diff=only_diff,
+    )
 
 
 @app.route("/api/products")

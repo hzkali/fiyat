@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from datetime import date
 
@@ -65,6 +66,7 @@ def init_db():
                 UNIQUE(product_id, snap_date)
             )""",
             "CREATE INDEX IF NOT EXISTS idx_snapshots_date ON snapshots(snap_date)",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS site TEXT NOT NULL DEFAULT 'fonksiyonel'",
         ]:
             _ex(conn, stmt)
     else:
@@ -91,22 +93,27 @@ def init_db():
             );
             CREATE INDEX IF NOT EXISTS idx_snapshots_date ON snapshots(snap_date);
         """)
+        try:
+            conn.execute("ALTER TABLE products ADD COLUMN site TEXT NOT NULL DEFAULT 'fonksiyonel'")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
 
 
-def upsert_product(shopify_id, handle, title, vendor, product_type, image_url, url):
+def upsert_product(shopify_id, handle, title, vendor, product_type, image_url, url, site="fonksiyonel"):
     conn = get_conn()
     _ex(conn, f"""
-        INSERT INTO products (shopify_id, handle, title, vendor, product_type, image_url, url)
-        VALUES ({PH},{PH},{PH},{PH},{PH},{PH},{PH})
+        INSERT INTO products (shopify_id, handle, title, vendor, product_type, image_url, url, site)
+        VALUES ({PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH})
         ON CONFLICT(shopify_id) DO UPDATE SET
             title        = excluded.title,
             vendor       = excluded.vendor,
             product_type = excluded.product_type,
             image_url    = excluded.image_url,
-            url          = excluded.url
-    """, (shopify_id, handle, title, vendor, product_type, image_url, url))
+            url          = excluded.url,
+            site         = excluded.site
+    """, (shopify_id, handle, title, vendor, product_type, image_url, url, site))
     row = _ex(conn, f"SELECT id FROM products WHERE shopify_id = {PH}", (shopify_id,)).fetchone()
     conn.commit()
     conn.close()
@@ -128,7 +135,7 @@ def upsert_snapshot(product_id, snap_date, price, compare_price, available, desc
     conn.close()
 
 
-def get_daily_products(snap_date=None):
+def get_daily_products(snap_date=None, site="fonksiyonel"):
     if snap_date is None:
         snap_date = str(date.today())
     conn = get_conn()
@@ -138,11 +145,62 @@ def get_daily_products(snap_date=None):
             s.price, s.compare_price, s.available, s.description, s.snap_date
         FROM snapshots s
         JOIN products p ON p.id = s.product_id
-        WHERE s.snap_date = {PH}
+        WHERE s.snap_date = {PH} AND p.site = {PH}
         ORDER BY s.available DESC, p.title ASC
-    """, (snap_date,)).fetchall()
+    """, (snap_date, site)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def _normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", (title or "").casefold()).strip()
+
+
+def get_latest_products_by_site(site: str) -> list:
+    """Her ürün için (siteye göre) en güncel snapshot'ı döndürür."""
+    conn = get_conn()
+    rows = _ex(conn, f"""
+        SELECT p.title, p.vendor, p.product_type, p.image_url, p.url, p.handle,
+               s.price, s.compare_price, s.available, s.snap_date
+        FROM products p
+        JOIN snapshots s ON s.product_id = p.id
+        WHERE p.site = {PH}
+          AND s.snap_date = (
+              SELECT MAX(s2.snap_date) FROM snapshots s2 WHERE s2.product_id = p.id
+          )
+    """, (site,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_comparison() -> list:
+    """fonksiyonel.tr ve vitanica.tr'deki ürünleri başlığa göre eşleştirip fiyatları karşılaştırır."""
+    fonksiyonel = get_latest_products_by_site("fonksiyonel")
+    vitanica = get_latest_products_by_site("vitanica")
+
+    vitanica_by_title = {}
+    for v in vitanica:
+        vitanica_by_title.setdefault(_normalize_title(v["title"]), v)
+
+    rows = []
+    for f in fonksiyonel:
+        v = vitanica_by_title.get(_normalize_title(f["title"]))
+        if not v:
+            continue
+        diff = round((f["price"] or 0) - (v["price"] or 0), 2)
+        rows.append({
+            "title": f["title"],
+            "image_url": f["image_url"] or v["image_url"],
+            "f_price": f["price"], "f_compare_price": f["compare_price"],
+            "f_url": f["url"], "f_available": f["available"], "f_date": f["snap_date"],
+            "v_price": v["price"], "v_compare_price": v["compare_price"],
+            "v_url": v["url"], "v_available": v["available"], "v_date": v["snap_date"],
+            "diff": diff,
+            "differs": abs(diff) > 0.01,
+        })
+
+    rows.sort(key=lambda r: (not r["differs"], r["title"]))
+    return rows
 
 
 def get_available_dates():
